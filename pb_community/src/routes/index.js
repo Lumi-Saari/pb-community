@@ -7,6 +7,7 @@ const app = new Hono();
 
 // トップページ
 app.get('/', async (c) => {
+  
 
   return c.html(
   layout(

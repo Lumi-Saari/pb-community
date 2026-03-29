@@ -7,7 +7,7 @@ const setupName = new Hono();
 setupName.get('/', (c) => {
   const session = c.get('session');
   const user = session.user;
-  if (!user) return c.redirect('/auth/google');
+  if (!user) return c.redirect('/login');
 
   return c.html(`
     <form method="post" action="/setup-name">
@@ -22,7 +22,7 @@ setupName.post('/', async (c) => {
   const session = c.get('session');
 
   if (!session.user?.userId) {
-    return c.redirect('/auth/google');
+    return c.redirect('/login');
   }
 
   const name = body.name; // ← ここで変数を定義

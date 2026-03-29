@@ -30,7 +30,10 @@ model User {
   iconUrl        String?
   isAdmin       Boolean @default(false)
   isBanned Boolean @default(false)
-
+  BanReason    String?
+  BannedAt    DateTime @default(now())
+  BanExpiresAt  DateTime?
+  BanInternalNote String?
   
   @@map(name: "users")
 }
@@ -57,6 +60,7 @@ model Room {
   updatedAt DateTime @updatedAt
   RoomPost  RoomPost[]
   Setting   UserRoomSetting []
+  islocked  Boolean   @default(false)
 
   @@map(name: "rooms")
 }
@@ -71,6 +75,7 @@ model Private {
   PrivatePost PrivatePost[]
   members     PrivateMember[]
   Setting     UserRoomSetting[]
+  isLocked    Boolean       @default(false)
 
   @@map(name: "privates")
 }
@@ -96,6 +101,7 @@ model RoomPost {
   isDeleted Boolean  @default(false) // 管理者が削除したら true
   imageUrl     String?
   thumbnailUrl String?
+  isLocked  Boolean  @default(false)
 
   parentId      String?
   parent        RoomPost? @relation("Reply", fields: [parentId], references: [postId])
@@ -114,6 +120,7 @@ model PrivatePost {
   isDeleted Boolean  @default(false)
   imageUrl     String?  
   thumbnailUrl String? 
+  isLocked  Boolean  @default(false)
 
   parentId      String?                          // ← 追加（返信先）
   parent        PrivatePost? @relation("Reply", fields: [parentId], references: [postId])

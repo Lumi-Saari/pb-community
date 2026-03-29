@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "public"."users" ADD COLUMN     "BanReason" TEXT,
+ADD COLUMN     "BannedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;

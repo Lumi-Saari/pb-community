@@ -23,10 +23,13 @@ const setupNameRouter = require('./routes/setup-name');
 const usersRouter = require('./routes/users');
 const roomRouter = require('./routes/rooms');
 const privateRouter = require('./routes/privates');
-const postsRouter = require('./routes/posts');
+const roompostsRouter = require('./routes/room-posts');
+const privatepostsRouter = require('./routes/private-posts');
 const accountRouter = require('./routes/account');
 const notificationRouter = require('./routes/notifications');
 const uploadRouter = require('./routes/uploads');
+const adminRouter = require('./routes/admin');
+const banRouter = require('./routes/ban');
 
 const app = new Hono();
 
@@ -106,6 +109,14 @@ app.get('/auth/google/callback', async (c) => {
       },
     });
   }
+
+  if (user.isBanned && user.BanExpiresAt && user.BanExpiresAt > new Date()) {
+  return c.json({
+    message: "あなたのアカウントは利用停止されています。",
+    reason: user.BanReason,
+  }, 403);
+}
+
   // 4. 初回ログイン（新規登録）
   if (!user) {
     let defaultUserName;
@@ -137,20 +148,21 @@ return c.redirect('/');
 });
 // ルーティング
 app.route('/', indexRouter);
+app.route('/ban', banRouter);
 app.route('/login', loginRouter);
 app.route('/logout', logoutRouter);
 app.route('/setup-name', setupNameRouter);
 app.route('/users', usersRouter);
 app.route('/rooms', roomRouter);
 app.route('/privates', privateRouter);
-app.route('/rooms', postsRouter);
-app.route('/privates', postsRouter);
+app.route('/rooms', roompostsRouter);
+app.route('/privates', privatepostsRouter);
 app.route('/account', accountRouter);
 app.route('/notifications', notificationRouter);
+app.route('/admin', adminRouter);
 app.use('*', serveStatic({ root: './public/stylesheets' }));
 app.route('/rooms/uploads', uploadRouter);
 app.route('/privates/uploads', uploadRouter);
-
 
 // 404 Not Found
 app.notFound((c) => {

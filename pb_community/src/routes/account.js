@@ -50,7 +50,7 @@ app.get('/', (c) => {
 app.get('/user/icon', (c) => {
   const session = c.get('session');
   const user = session?.user;
-  if (!user) return c.redirect('/auth/google');
+  if (!user) return c.redirect('/login');
 
   return c.html(`
     <h3>アイコンアップロード</h3>
@@ -63,7 +63,7 @@ app.get('/user/icon', (c) => {
 app.post('/user/icon', async (c) => {
   const session = c.get('session');
   const user = session?.user;
-  if (!user) return c.redirect('/auth/google');
+  if (!user) return c.redirect('/login');
 
   const formData = await c.req.parseBody();
   const iconFile = formData.icon;
@@ -112,7 +112,7 @@ app.post('/user/icon', async (c) => {
 app.get('/change-name', (c) => {
   const session = c.get('session');
   const user = session.user;
-  if (!user) return c.redirect('/auth/google');
+  if (!user) return c.redirect('/login');
 
   return c.html(`
     <h3>ユーザー名の変更</h3>
@@ -126,7 +126,7 @@ app.get('/change-name', (c) => {
 app.get('/activity-place', (c) => {
   const session = c.get('session');
   const user = session.user;
-  if (!user) return c.redirect('/auth/google');
+  if (!user) return c.redirect('/login');
 
   return c.html(`
     <h3>活動場所の設定</h3>
@@ -140,7 +140,7 @@ app.get('/activity-place', (c) => {
 app.post('/activity-place', async (c) => {
   const session = c.get('session');
   const user = session.user;
-  if (!user) return c.redirect('/auth/google');
+  if (!user) return c.redirect('/login');
 
   const body = await c.req.parseBody();
   const activityPlace = body.activityPlace;
@@ -195,7 +195,7 @@ app.get('/bio', async (c) => {
 app.post('/bio', async (c) => {
   const session = c.get('session');
   const user = session.user;
-  if (!user) return c.redirect('/auth/google');
+  if (!user) return c.redirect('/login');
 
   const body = await c.req.parseBody();
   const bio = body.bio;
@@ -208,7 +208,6 @@ app.post('/bio', async (c) => {
 
     // セッション情報も更新
     session.user.bio = bio;
-    console.log('Updated bio:', bio);
     return c.html(`
       <p>自己紹介を更新しました。</p>
       <a href="/account">アカウント管理へ戻る</a>
@@ -235,13 +234,17 @@ app.post('/delete', async (c) => {
     `));
   }
 
+
   try {
     // ユーザーを論理削除
     await prisma.user.update({
       where: { userId },
       data: {
-        username: `退会ユーザー_${userId.slice(0, 6)}`,
+        username: `退会user_${userId.slice(0, 6)}`,
         isDeleted: true, // ← 論理削除フラグをセット
+        bio: null,
+        activityPlace: null,
+        iconUrl:'/uploads/default.jpg'
       },
     });
 
@@ -283,6 +286,7 @@ app.post('/delete', async (c) => {
     );
   }
 });
+
 
 
 module.exports = app;

@@ -15,11 +15,11 @@ function ensureAuthenticated() {
     // DBからユーザー確認
     const foundUser = await prisma.user.findUnique({
       where: { userId: user.userId },
-      select: { isDeleted: true } // 必要な項目だけ取得
+      select: { isDeleted: true, isBanned: true } // 必要な項目だけ取得
     });
 
-    // 存在しない or 退会済み（isDeleted = true）
-    if (!foundUser || foundUser.isDeleted) {
+    // 存在しない or 退会済み（isDeleted = true） or バンされている（isBanned = true）
+    if (!foundUser || foundUser.isDeleted || foundUser.isBanned) {
       // セッション情報をクリア
       session.user = null;
 
@@ -28,7 +28,12 @@ function ensureAuthenticated() {
         await c.env.sessions.deleteSession(c);
       }
 
+      if(foundUser.isBanned){
+        return c.redirect('/ban')
+      }else{
+
       return c.redirect('/login');
+      }
     }
 
     // OKなら次の処理へ

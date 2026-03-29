@@ -2,13 +2,16 @@ const { Hono } = require('hono');
 const { html } = require('hono/html');
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient({ log: ['query']});
+const ensureAuthenticated = require('../middlewares/ensure-authenticated');
 
 const app = new Hono();
+
+app.use(ensureAuthenticated());
 
 // 通知一覧
 app.get('/', async (c) => {
   const { user } = c.get('session') ?? {};
-  if (!user?.userId) return c.redirect('/auth/google');
+  if (!user?.userId) return c.redirect('/login');
   
   const MAX_NOTIFICATIONS = 50;
 
