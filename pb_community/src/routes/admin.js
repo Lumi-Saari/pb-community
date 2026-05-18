@@ -72,6 +72,8 @@ admin.get('/', async (c) => {
           <br/>
           <a href="/admin/privates">プライベートルーム管理</a><br/>
           <br/>
+          <a href="/admin/logs">ログ管理</a><br/>
+          <br/>
           <a href="/admin/reports">通報管理</a>
         </div>
       `
@@ -102,21 +104,27 @@ const { user } = c.get('session');
   }
 
   const { userId } = c.req.param();
+ const username = await prisma.user.findUnique({
+  where: { userId },
+  select: { username: true },
+}).then(u => u?.username ?? '名無しユーザー');
   
   await prisma.user.update({
   where: { userId: userId },
   data: {
     isBanned: true,
-    username: `BANuser_${userId.slice(0, 6)}`,
     BanReason: reason,
     BannedAt: new Date(),
     BanExpiresAt: expires,
-    iconUrl: '/uploads/default.jpg',
-    bio: null,
-    activityPlace: null,
 
   },
 });
+
+    await prisma.LogPost.create({
+      data:{
+        content: `${username}さんを${reason}で${days > 0 ? days + '日間' : '無期限'}BANしました。`,
+      }
+    })
 
   return c.json({ success: true, message: 'ユーザーをBANしました。' });
 });
@@ -135,6 +143,10 @@ admin.post('/warn/:userId', async (c) => {
 
   const { warning } = await c.req.json();
   const { userId } = c.req.param();
+  const username = await prisma.user.findUnique({
+    where: { userId },
+    select: { username: true },
+  }).then(u => u?.username ?? '名無しユーザー');
 
   await prisma.notification.create({
     data: {
@@ -142,6 +154,12 @@ admin.post('/warn/:userId', async (c) => {
       message: `管理者からの警告: ${warning}`,
     }
   });
+
+  await prisma.LogPost.create({
+    data:{
+      content: `${username}さんに警告「${warning}」を送りました。`
+    }
+  })
 
   return c.json({ message: '警告を送信しました' });
 });
@@ -158,6 +176,11 @@ admin.post('/unban/:userId', async (c) => {
   }
 
   const { userId } = c.req.param();
+ const username = await prisma.user.findUnique({
+  where: { userId },
+  select: { username: true },
+}).then(u => u?.username ?? '名無しユーザー');
+  
 
   await prisma.user.update({
     where: { userId: userId },
@@ -165,9 +188,14 @@ admin.post('/unban/:userId', async (c) => {
       isBanned: false,
       BanReason: null,
       BanExpiresAt: null,
-      username: `user_${userId.slice(0, 6)}`,
     },
   });
+
+  await prisma.LogPost.create({
+    data: {
+      content: `${username}さんのBANを解除しました。`
+    }
+  })
 
   return c.json({ success: true, message: 'ユーザーのBANを解除しました。' });
 });
@@ -182,6 +210,10 @@ admin.post('/rooms/lock/:roomId', async (c) => {
     403
   )
   const { roomId } = c.req.param();
+  const roomname = await prisma.room.findUnique({
+    where: { roomId },
+    select: { roomName: true}
+  }).then(r => r?.roomName ?? '名無しルーム');
 
   await prisma.room.update({
     where: { roomId: String(roomId) },
@@ -192,6 +224,13 @@ admin.post('/rooms/lock/:roomId', async (c) => {
      where: { roomId },
      data: { isLocked: true }
   });
+
+  await prisma.LogPost.create({
+    data: {
+      content: `ルーム「${roomname}」をロックしました。`
+    }
+  })
+
 
   return c.json({ success: true, message: 'ルームをロックしました。' });
 });
@@ -206,6 +245,10 @@ admin.post('/rooms/unlock/:roomId', async (c) => {
   )
 
   const { roomId } = c.req.param();
+  const roomname = await prisma.room.findUnique({
+    where: { roomId },
+    select: { roomName: true}
+  }).then(r => r?.roomName ?? '名無しルーム');
 
   await prisma.room.update({
     where: { roomId: String(roomId) },
@@ -217,7 +260,13 @@ admin.post('/rooms/unlock/:roomId', async (c) => {
     data: { isLocked: false }
   });
 
-  return c.json({ success: true, message: 'ルームをロックしました' });
+  await prisma.LogPost.create({
+    data: { 
+      content: `ルーム「${roomname}」のロックを解除しました。`
+    }
+  })
+
+  return c.json({ success: true, message: 'ルームのロックを解除しました。' });
 });
 
 admin.post('/privates/lock/:privateId', async (c) => {
@@ -232,6 +281,11 @@ admin.post('/privates/lock/:privateId', async (c) => {
     403
   )
 
+  const privatename = await prisma.private.findUnique({
+    where: { privateId },
+    select: { privateName: true}
+  }).then(p => p?.privateName ?? '名無しルーム');
+
   await prisma.private.update({
     where: { privateId },
     data: { isLocked: true}
@@ -242,10 +296,16 @@ admin.post('/privates/lock/:privateId', async (c) => {
     data: { isLocked: true }
   })
 
+  await prisma.LogPost.create({
+    data:{
+      content: `プライベートルーム「${privatename}」をロックしました。`
+    }
+  })
+
   return c.json({ success: true, message: 'プライベートルームをロックしました。' });
 });
 
-admin.post ('/privates/unlock/:privateId', async (c) => {
+admin.post('/privates/unlock/:privateId', async (c) => {
   const { privateId } = c.req.param();
 
   const { user } = c.get('session');
@@ -257,6 +317,11 @@ admin.post ('/privates/unlock/:privateId', async (c) => {
     403
   )
 
+  const privatename = await prisma.private.findUnique({
+    where: { privateId },
+    select: { privateName: true}
+  }).then(p => p?.privateName ?? '名無しルーム');
+
   await prisma.private.update({
     where: { privateId },
     data: { isLocked: false}
@@ -267,8 +332,151 @@ admin.post ('/privates/unlock/:privateId', async (c) => {
     data: { isLocked: false }
   })
 
+  await prisma.LogPost.create({
+    data:{
+      content: `プライベートルーム「${privatename}」のロックを解除しました。`
+    }
+  })
+
   return c.json({ success: true, message: 'プライベートルームのロックを解除しました。'})
 })
+
+admin.post('/limit/:userId', async (c) => {
+  const { user } = c.get('session');
+  if(!user) return c.redirect('/login');
+
+  const isAdmin = user.isAdmin;
+  if(!isAdmin) return c.html(
+    `<h1>アクセス拒否</h1><p>管理者権限が必要です。</p><a href="/">トップページへ戻る</a>`,
+    403
+  )
+
+  const { userId } = c.req.param();
+  const username = await prisma.user.findUnique({
+    where: { userId },
+    select: { username: true}
+  }).then(u => u?.username ?? '名無しユーザー');
+  
+ const { days } = await c.req.json();
+  const { reason } = await c.req.json();
+
+
+  let expires = null
+
+  if (days > 0 ) {
+    expires = new Date(
+      Date.now() + days * 24 * 60 * 60 * 1000
+    );
+  }
+
+  await prisma.user.update({
+    where: { userId },
+    data: { 
+      isLimited: true,
+      LimitExpiresAt: expires,
+      LimitedReason: '管理者からの制限:' + reason + '     ',
+    }
+  })
+
+      await prisma.notification.create({
+      data: {
+        userId: userId,
+      message:`${ reason }、管理者があなたを制限しました。投稿や新規ルーム作成ができません。期限：${expires ? new Date(expires).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }) + 'まで' : '無期限'}`,
+    }
+  });
+
+  await prisma.LogPost.create({
+    data: {
+      content: `${username}さんを${reason}制限しました。期限:${expires ? new Date(expires).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }) + 'まで' : '無期限'}`
+    }
+  })
+
+  return c.json({ success: true, message: 'ユーザーに制限を与えました。'});
+});
+
+admin.post('/unlimit/:userId', async (c) => {
+  const { user } = c.get('session');
+  if(!user) return c.redirect('/login');
+  
+  const isAdmin = user.isAdmin;
+  if(!isAdmin) return c.html(
+    `<h1>アクセス拒否</h1><p>管理者権限が必要です。</p> <a href="/">トップページへ戻る</a>`,
+    403
+  )
+
+  const { userId } = c.req.param();
+  const username = await prisma.user.findUnique({
+    where: { userId },
+    select: { username: true }
+  }).then( u => u?.username ?? '名無しユーザー')
+
+  await prisma.user.update({
+    where: { userId },
+    data: { 
+      isLimited: false,
+      LimitExpiresAt: null,
+      LimitedReason: null,
+     }
+  })
+
+  await prisma.LogPost.create({
+    data:{
+      content: `${username}さんの制限を解除しました。`
+    }
+  })
+
+  return c.json({ success: true, message: 'ユーザーの制限を解除しました。'});
+})
+
+admin.post('/logs/posts', async (c) => {
+  const body = await c.req.parseBody();
+  const content = typeof body.content === 'string' ? body.content : null;
+
+  const post = await prisma.LogPost.create({
+    data: { content },
+  });
+
+  return c.redirect('/admin/logs');
+});
+
+admin.get('/logs/posts', async (c) => {
+  const posts = await prisma.LogPost.findMany({
+    orderBy: { createdAt: 'asc' },
+  });
+
+  return c.json(posts);
+})
+
+//ログ管理ページ
+admin.get('/logs', async (c) => {
+   const posts = await prisma.LogPost.findMany({
+    orderBy: { createdAt: 'asc' },
+  });
+
+  const postList = posts.map(
+    (p) => `
+    <p><strong>${p.createdAt.toLocaleString('ja-JP', {
+                timeZone: 'Asia/Tokyo'
+              })}</strong> :
+    ${p.content}
+    </p>
+    <hr/>
+    `
+  ).join('');
+  
+  return c.html(`
+    <h1>ログ</h1>
+    <a href="/admin">管理者ページに戻る</a>
+    <div id="postList">
+     ${postList || '<p>ログはまだありません</p>'}
+    </div>
+    
+    <form method="POST" action="/admin/logs/posts">
+      <input type="text" name="content" required />
+      <button type="submit">投稿</button>
+    </form>
+  `);
+});
 
 // ユーザー管理ページ
 admin.get('/users', requireAdmin(), async (c) => {
@@ -328,6 +536,9 @@ admin.get('/users', requireAdmin(), async (c) => {
     <button class="ban-user-btn" data-userid="${p.userId}">BAN</button>
     <button class="unban-user-btn" data-userid="${p.userId}">BAN解除</button>
     <button class="warn-user-btn" data-userid="${p.userId}">警告</button>
+    <br/>
+    <button class="limit-user-btn" data-userid="${p.userId}">制限する</button>
+    <button class="unlimit-user-btn" data-userid="${p.userId}">制限を解除する</button>
     <p>活動場所: ${p.activityPlace ?? '未設定' }</p>
     <p>自己紹介: ${p.bio ?? '未設定' }</p>
     <hr/>
@@ -415,7 +626,7 @@ document.addEventListener('click', async (e) => {
 
   const res = await fetch(\`/admin/warn/\${userId}\`, {
     method: "POST",
-    headers: {"Content-Type" : "application/json" },
+    headers: {"Content-Type" : "application/json" }, 
     body: JSON.stringify({ warning }),
   });
   const data = await res.json();
@@ -423,6 +634,53 @@ document.addEventListener('click', async (e) => {
 }
 );
       </script>
+  <script>
+    document.addEventListener('click', async (e) => {
+      const button = e.target.closest('.limit-user-btn');
+      if(!button) {
+       console.log('制限ボタンではありません');
+       return;
+      }
+       
+      const userId = button.getAttribute('data-userid');
+      const days = prompt("制限日数を入力 (0 = 無期限)")
+      if (days === null) return;
+
+      confirmed = confirm(\`\${days}日制限しますか？\`);
+      if(!confirmed) return;
+
+      const reason = prompt('制限理由を入力してください');
+      if(!reason) return;
+
+      const res = await fetch(\`/admin/limit/\${userId}\`, {
+        method: 'POST',
+        headers: {"Content-Type" : "application/json" },
+        body: JSON.stringify({ days: Number(days),reason: reason,}),
+      });
+
+      const data = await res.json();
+      alert(data.message);
+      location.reload();
+      });
+    </script>
+    <script>
+      document.addEventListener('click', async (e) => {
+        const button = e.target.closest('.unlimit-user-btn');
+        if(!button) {
+          console.log('制限解除ボタンではありません');
+          return;
+        }
+          const userId = button.getAttribute('data-userid');
+
+          const res = await fetch(\`/admin/unlimit/\${userId}\`, {
+            method: 'POST'
+          });
+
+          const data = await res.json();
+          alert(data.message);
+          location.reload();
+      });
+    </script>
       <form method="post" action="/admin/users/search">
        <input type="text" name="q" placeholder="ユーザー名で検索" />
        <button type="submit">検索</button>
@@ -493,6 +751,7 @@ admin.post('/users/search', async (c) => {
   return c.redirect(`/admin/users/search?q=${encodeURIComponent(q)}`);
 })
 
+//ルーム管理ページ
 admin.get('/rooms', requireAdmin(), async (c) => {
   const { user } = c.get('session');
   if (!user) return c.redirect('/login')
@@ -612,6 +871,7 @@ admin.post('/rooms/search', async (c) => {
   return c.redirect(`/rooms/lists/search?q=${encodeURIComponent(q)}`);
 });
 
+//プライベートルーム管理ページ
 admin.get('/privates', async (c) => {
   const { user } = c.get('session');
   if(!user) return c.redirect('/login');

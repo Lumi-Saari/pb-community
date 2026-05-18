@@ -5,9 +5,41 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient({ log: ['query'] });
 const app = new Hono();
 
+
 // トップページ
 app.get('/', async (c) => {
-  
+  const session = c.get('session');
+  const sessionUser = session?.user;
+  if (!sessionUser) {
+    return c.redirect('/login');
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { userId: sessionUser.userId },
+  })
+
+  const now = new Date();
+
+if (user.isLimited && user.LimitExpiresAt) {
+  if (new Date(user.LimitExpiresAt) <= now) {
+    await prisma.user.update({
+      where: { userId: user.userId },
+      data: {
+        isLimited: false,
+        LimitedReason: null,
+        LimitExpiresAt: null,
+      },
+    });
+
+    user.isLimited = false;
+  }
+}
+
+  const currentUser = {
+    isLimited: user.isLimited,
+    LimitedReason: user.LimitedReason,
+    LimitExpiresAt: user.LimitExpiresAt,
+  }
 
   return c.html(
   layout(
@@ -41,8 +73,26 @@ app.get('/', async (c) => {
       </div>
       <div>
         <h3>ルーム・プライベートルーム作成</h3>
-        <a href="/rooms/new">ルームを作る</a><br/>
-        <a href="/privates/new">プライベートルームを作る</a>
+        ${currentUser.isLimited
+  ? html`
+    <p class="limit-message">
+      <strong>あなたは現在制限中のため、ルームを作成できません。</strong>
+      <br>
+       ${currentUser.LimitedReason || '理由不明'}<br>
+      ${
+        currentUser.LimitExpiresAt && !isNaN(new Date(currentUser.LimitExpiresAt))
+          ? `期限: ${new Date(currentUser.LimitExpiresAt).toLocaleString('ja-JP', {
+            timeZone: 'Asia/Tokyo'
+          })}`
+          : '期限: 無期限'
+      }
+    </p>
+  `
+  : html`
+    <a href="/rooms/new">ルームを作成</a></br/>
+    <a href="/privates/new">プライベートルームを作成</a>
+  `
+}
       </div>
       <div>
        <h3>ルーム・プライベートルーム一覧</h3>

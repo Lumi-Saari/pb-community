@@ -5,22 +5,22 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient({ log: ['query'] });
 const app = new Hono();
 
-app.get('/' , async (c) => {
+app.get('/', async (c) => {
   const { user } = c.get('session');
-  if(!user) return c.redirect('/login');
+  if (!user) return c.redirect('/login');
 
-  if(!user.isBanned) return c.redirect('/');
-
-    await prisma.user.findUnique({
-      where: { userId: user.userId },
-      select: {
-        BanReason: true,
-        BanExpiresAt: true,
-      }
-    }).then(banInfo => {
-      user.BanReason = banInfo.BanReason;
-      user.BanExpiresAt = banInfo.BanExpiresAt;
+  const dbUser = await prisma.user.findUnique({
+    where: { userId: user.userId },
+    select: {
+      isBanned: true,
+      BanReason: true,
+      BanExpiresAt: true,
+    }
     });
+
+  if (!dbUser?.isBanned) {
+    return c.redirect('/');
+  }
   
   return c.html(
     layout(
@@ -30,8 +30,8 @@ app.get('/' , async (c) => {
       <h1>アカウントは停止されました。</h1>
       <h3>あなたのアカウントは利用規約違反により停止されています。</h3>
       <div>
-      理由: ${user.BanReason || '不明'}<br/>
-      期間: ${user.BanExpiresAt ? new Date(user.BanExpiresAt).toLocaleString() + 'まで' : '無期限'}<br/>
+      理由: ${dbUser.BanReason || '不明'}<br/>
+      期間: ${dbUser.BanExpiresAt ? new Date(dbUser.BanExpiresAt).toLocaleString('ja-JP', {timeZone: 'Asia/Tokyo'}) + 'まで': '無期限'}<br/>
       </div>
       `
     )

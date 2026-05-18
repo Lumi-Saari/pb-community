@@ -4,41 +4,36 @@ const prisma = new PrismaClient();
 
 function ensureAuthenticated() {
   return createMiddleware(async (c, next) => {
-    const session = c.get('session');
-    const user = session?.user;
+  const session = c.get('session');
+  const user = session?.user;
+  if (!user) {
+    return c.redirect('/login');
+  }
 
-    // セッションなし → ログインページへ
-    if (!user) {
-      return c.redirect('/login');
+  const existingUser = await prisma.user.findUnique({ where: { userId: user.userId }, select: { userId: true, isBanned: true, BanReason: true, BanExpiresAt: true } });
+  if (!existingUser) {
+    return c.redirect('/login');
+  }
+  
+  const now = new Date();
+  if (existingUser.isBanned && existingUser.BanExpiresAt) {
+    if (new Date(existingUser.BanExpiresAt) <= now) {
+      await prisma.user.update({
+        where: { userId: existingUser.userId },
+        data: {
+          isBanned: false,
+          BanReason: null,
+          BanExpiresAt: null,
+        },
+      });
+    } else {
+      c.set('user', existingUser);
+      return c.redirect('/ban');
     }
+  }
 
-    // DBからユーザー確認
-    const foundUser = await prisma.user.findUnique({
-      where: { userId: user.userId },
-      select: { isDeleted: true, isBanned: true } // 必要な項目だけ取得
-    });
-
-    // 存在しない or 退会済み（isDeleted = true） or バンされている（isBanned = true）
-    if (!foundUser || foundUser.isDeleted || foundUser.isBanned) {
-      // セッション情報をクリア
-      session.user = null;
-
-      // セッション管理ライブラリを使っている場合は削除処理を追加（例）
-      if (c.env.sessions?.deleteSession) {
-        await c.env.sessions.deleteSession(c);
-      }
-
-      if(foundUser.isBanned){
-        return c.redirect('/ban')
-      }else{
-
-      return c.redirect('/login');
-      }
-    }
-
-    // OKなら次の処理へ
-    await next();
-  });
-}
-
+  c.set('user', existingUser);
+  await next();
+}); 
+};
 module.exports = ensureAuthenticated;

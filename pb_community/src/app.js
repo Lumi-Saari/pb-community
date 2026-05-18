@@ -110,7 +110,7 @@ app.get('/auth/google/callback', async (c) => {
     });
   }
 
-  if (user.isBanned && user.BanExpiresAt && user.BanExpiresAt > new Date()) {
+if (user && user.isBanned && user.BanExpiresAt && user.BanExpiresAt > new Date()) {
   return c.json({
     message: "あなたのアカウントは利用停止されています。",
     reason: user.BanReason,
@@ -125,6 +125,8 @@ app.get('/auth/google/callback', async (c) => {
       const exists = await prisma.user.findUnique({ where: { username: defaultUserName } });
       if (!exists) break;
     }
+
+ console.log(userInfo);
 
     user = await prisma.user.create({
       data: {

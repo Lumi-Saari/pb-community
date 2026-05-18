@@ -28,8 +28,64 @@ function privateTable(privates) {
   `;
 }
 
+async function checkLimit(user) {
+  const now = new Date();
+
+  if (!user.isLimited) return false;
+
+  if (user.LimitExpiresAt && new Date(user.LimitExpiresAt) <= now) {
+    await prisma.user.update({
+      where: { userId: user.userId },
+      data: {
+        isLimited: false,
+        LimitedReason: null,
+        LimitExpiresAt: null,
+      },
+    });
+
+    user.isLimited = false;
+    user.LimitedReason = null;
+    user.LimitExpiresAt = null;
+    return false;
+  }
+  return true;
+}
+
+
 app.use(ensureAuthenticated());
-app.get('/new', (c) => {
+app.get('/new', async (c) => {
+ const session = c.get('session');
+  const sessionUser = session?.user
+
+  const user = await prisma.user.findUnique({
+    where: { userId: sessionUser.userId }
+  });
+
+const isLimitedNow = await checkLimit(user);
+
+    const currentUser = {
+    isLimited: user.isLimited,
+    LimitedReason: user.LimitedReason,
+    LimitExpiresAt: user.LimitExpiresAt
+  }
+
+  if (isLimitedNow) {
+  return c.html(`
+    <h2>ルームを作成できません</h2>
+    <p>現在あなたのアカウントには制限がかかっています。</p>
+    <p>${currentUser.LimitedReason || '理由不明'}</p>
+    <p>
+      ${
+        currentUser.LimitExpiresAt
+          ? `期限: ${new Date(currentUser.LimitExpiresAt).toLocaleString('ja-JP', {
+            timeZone: 'Asia/Tokyo'
+          })}`
+          : '期限: 無期限'
+      }
+    </p>
+    <a href="/">戻る</a>
+  `, 403);
+}
   return c.html(
   layout(
     c,
@@ -37,6 +93,7 @@ app.get('/new', (c) => {
     html`
       <form method="post" action="/privates">
         <div>
+        <h1>プライベートルームを作成する</h1>
           <h5>ルーム名 二十五文字まで</h5>
           <input type="text" name="privateName"  maxlength="25" />
         </div>
@@ -53,12 +110,15 @@ app.get('/new', (c) => {
 
  // プライベートルーム作成
 app.post('/', async (c) => {
-  const { user } = c.get('session') ?? {};
+    const session = c.get('session');
+  const sessionUser = session?.user
+
+  const user = await prisma.user.findUnique({
+    where: { userId: sessionUser.userId }
+  });
   const body = await c.req.parseBody();
 
-  if (!user?.userId) {
-    return c.json({ error: 'ログインしてください' }, 401);
-  }
+  if (!user?.userId) return c.json({ error: 'ログインしてください' }, 401);
 
   if (!user || user.isDeleted) {
     return c.html(layout(c, 'エラー', html`
@@ -66,6 +126,30 @@ app.post('/', async (c) => {
       <a href="/login">ログイン</a>
     `));
   }
+
+  const now = new Date();
+
+if (user.isLimited && user.LimitExpiresAt) {
+  if (new Date(user.LimitExpiresAt) <= now) {
+    await prisma.user.update({
+      where: { userId: user.userId },
+      data: {
+        isLimited: false,
+        LimitedReason: null,
+        LimitExpiresAt: null,
+      },
+    });
+
+    user.isLimited = false;
+  }
+}
+
+  const currentUser = {
+    isLimited: user.isLimited
+  }
+
+  if(currentUser.isLimited) return c.text('あなたは制限されているためルームを作成できません', 403);
+
 
 const privateRoom = await prisma.private.create({
   data: {
@@ -238,6 +322,7 @@ app.get('/lists', async (c) => {
       html`
       <a href="/">トップページに戻る</a>
       <h2>プライベートルーム一覧</h2>
+       <p>あなたが招待されているプライベートルームの一覧です。</p>
       <h3>検索</h3>
       <form method="post" action="/privates/lists/search">
         <input type="text" name="q" placeholder="ルーム名で検索">
@@ -382,7 +467,7 @@ const private = await prisma.private.findUnique({
 
  const posts = await prisma.privatePost.findMany({
   where: { privateId, isDeleted: false},
-  orderBy: { createdAt: 'desc' },
+  orderBy: { createdAt: 'asc' },
   select: {
     postId: true,
     parentId: true,
@@ -406,9 +491,29 @@ const tree = parents.map(parent => ({
   replyCount: posts.filter(p => p.parentId === parent.postId).length
 }));
 
- const { user } = c.get('session') ?? {};
-if (!user?.userId) return c.redirect('/login');
+const session = c.get('session');
+const sessionUser = session?.user;
 
+const user = await prisma.user.findUnique({
+  where: { userId: sessionUser.userId}
+});
+
+const now = new Date();
+
+if (user.isLimited && user.LimitExpiresAt) {
+  if (new Date(user.LimitExpiresAt) <= now) {
+    await prisma.user.update({
+      where: { userId: user.userId },
+      data: {
+        isLimited: false,
+        LimitedReason: null,
+        LimitExpiresAt: null,
+      },
+    });
+
+    user.isLimited = false;
+  }
+}
 
 const setting = await prisma.userRoomSetting.findFirst({
   where: {
@@ -420,9 +525,13 @@ const setting = await prisma.userRoomSetting.findFirst({
 const currentUser = {
   userId: user.userId,
   isAdmin: user.isAdmin,
+  isLimited: user.isLimited,
+  LimitExpiresAt: user.LimitExpiresAt,
+  LimitedReason: user.LimitedReason,
 };
 
 const privateisLocked = private.isLocked && !currentUser.isAdmin;
+const isLimited = currentUser.isLimited
 
 const deleteButtonHTML = (p) => 
   currentUser.isAdmin === true || currentUser.isAdmin === "true"
@@ -455,7 +564,6 @@ const isAdmin = user.isAdmin;
   }
 
 const postList = tree.map(p => {
-  const isLocked = p.isLocked && !currentUser.isAdmin;
   return `
 <style>
 hr.end {
@@ -472,6 +580,12 @@ hr.end {
 }
 </style>
 
+<style type="text/css" scoped>
+ul {
+    display: -webkit-flex;
+    display: flex;
+}
+</style>
 
   <div class="post" data-postid="${p.postId}">
     <p>
@@ -485,16 +599,43 @@ hr.end {
       <small>${new Date(p.createdAt).toLocaleString()}</small>
     </p>
 
-    <!-- 返信一覧開閉ボタン（返信がある場合のみ） -->
-<div id="reply-count-${p.postId}" data-count="${p.replyCount}">
+    <span>
+
+    <button class="reply-btn" data-parent="${p.postId}">返信</button>
+
+          <!-- 返信一覧開閉ボタン（返信がある場合のみ） -->
+
   ${p.replyCount > 0 ? `
       <button class="toggle-replies-btn" data-parent="${p.postId}">
         ▼ ${p.replyCount}件の返信
       </button>
     ` : ''}
-</div>
+ </span>
 
-    <!-- 返信一覧（最初は非表示） -->
+     ${privateisLocked || isLimited ? `
+  <p class="lock-message">
+  ${
+    privateisLocked
+      ? 'このルームはロック中です。新しい返信はできません。'
+      : `あなたは投稿できません。${currentUser.LimitedReason}期限: ${
+          currentUser.LimitExpiresAt
+            ? new Date(currentUser.LimitExpiresAt).toLocaleString('ja-JP', {
+                timeZone: 'Asia/Tokyo'
+              }) + 'まで'
+            : '無期限'
+        }`
+  }
+  </p>
+` : `
+    <form class="reply-form" data-parent="${p.postId}" style="display:none;">
+       <textarea name="content"></textarea>
+        <input type="file" name="icon" accept="image/*">
+        <button type="submit">投稿</button>
+       </form>
+      `}
+
+
+        <!-- 返信一覧（最初は非表示） -->
     <div class="replies" data-parent="${p.postId}" style="display:none;">
       ${
         p.replies.map(r => `
@@ -511,23 +652,6 @@ hr.end {
         `).join('')
       }
     </div>
-
-        <!-- 返信ボタン -->
-    ${!isLocked ? `
-      <button class="reply-btn" data-parent="${p.postId}">返信</button>
-    ` : ''}
-
-    <!-- 返信フォーム -->
-    <form class="reply-form" data-parent="${p.postId}" style="display:none;">
-      ${!isLocked ? ` 
-        <textarea name="content" rows="2" placeholder="返信を書く"></textarea>
-        <input type="file" name="icon" accept="image/*">
-        <button type="submit">送信</button>
-      ` : ``}
-    </form>
-
-    <!-- ロックメッセージ -->
-    ${isLocked ? `<div class="lock-message">この投稿はロック中です。返信できません。</div>` : ''}
 
     <hr class="end"/>
   </div>
@@ -589,18 +713,35 @@ hr.end {
 </div>
 
 <div>
- ${privateisLocked ? '<p>このプライベートルームはロック中です。新しい投稿はできません</p>' : ''}
- ${!privateisLocked ? `
-  <form id="postForm">
-    <textarea name="content"></textarea>
-    <input type="file" name="icon" accept="image/*">
-    <button type="submit">投稿</button>
-  </form>
- ` : ''}
+  ${privateisLocked || isLimited ? `
+  <p class="lock-message">
+  ${
+    privateisLocked
+      ? 'このルームはロック中です。新しい投稿はできません。'
+      : `あなたは投稿できません。${currentUser.LimitedReason}期限: ${
+          currentUser.LimitExpiresAt
+            ? new Date(currentUser.LimitExpiresAt).toLocaleString('ja-JP', {
+                timeZone: 'Asia/Tokyo'
+              }) + 'まで'
+            : '無期限'
+        }`
+  }
+  </p>
+` : `
+    
+      <form id="postForm">
+       <textarea name="content"></textarea>
+       <input type="file" name="icon" accept="image/*">
+       <button type="submit">投稿</button>
+      </form>`}
+ </div>
   <script id="current-user" type="application/json">
       ${JSON.stringify({
         userId: user.userId,
         isAdmin: user.isAdmin,
+        isLimited: user.isLimited,
+        LimitExpiresAt: user.LimitExpiresAt,
+        LimitedReason: user.LimitedReason,
       })}
     </script>
 
@@ -630,6 +771,7 @@ function generatePostHTML(post) {
 );
 
  const isLocked = post.isLocked && !currentUser.isAdmin;
+ const isLimited = currentUser.isLimited;
 
 const LockMessageHTML =!isLocked && currentUser.isAdmin ? \`
    <button class="posts-lock-btn" data-postid="\${post.postId}">
@@ -664,18 +806,31 @@ const deleteButtonHTML =
         <small>\${new Date(post.createdAt).toLocaleString()}</small>
       </p>
 
+      \${
+          isLocked || isLimited
+        ? \`<div class="lock-message"> 
+          \${ 
+             isLocked
+                ? 'この返信はロック中です。返信できません。'
+                : \`あなたは返信できません。\${currentUser.LimitedReason}期限: \${
+                currentUser.LimitExpiresAt
+                 ? new Date(currentUser.LimitExpiresAt).toLocaleString('ja-JP',{
+                  timeZone: 'Asia/Tokyo'
+                }) + 'まで' 
+                  : '無期限'
+                 }\`
+              }
+           </div>\`
+        : \`<button class="reply-btn" data-parent="\${String(post.postId)}">返信</button>\`
+      }
+
       \${replyCount > 0 ? \`
         <button class="toggle-replies-btn" data-parent="\${String(post.postId)}">
-         \${replyCount}件の返信
+         ▼ \${replyCount}件の返信
          </button>
          \` : ''}
 
-      <div class="replies"
-       data-parent="\${post.postId}"
-       style="display:none">
-  </div>
-
-      \${!isLocked ? \`
+      \${!isLocked && ! isLimited ? \`
           <form class="reply-form" data-parent="\${String(post.postId)}" style="display:none;">
            <textarea name="content" rows="2"></textarea>
            <input type="file" name="icon">
@@ -683,12 +838,13 @@ const deleteButtonHTML =
          </form>
           \` : ''}
 
-      \${isLocked
-        ? \`<div class="lock-message"> この返信はロック中です</div>\`
-        : \`<button class="reply-btn" data-parent="\${String(post.postId)}">返信</button>\`
-      }
-      <hr class="end"/>
-    </div>
+      <div class="replies"
+       data-parent="\${post.postId}"
+       style="display:none">
+  </div>
+
+  <hr class="end"/>
+     </div>
   \`;
 }
 
@@ -830,7 +986,7 @@ function renderAllPosts(posts) {
   container.querySelectorAll('.post').forEach(el => {
     const id = el.dataset.postid;
     if (!serverPostIds.has(id)) {
-    el.remove();
+      el.remove();
     }
   });
 
@@ -854,11 +1010,12 @@ function renderAllPosts(posts) {
 
     if (!repliesBox) return;
     let toggleBtn = postEl.querySelector(
-      \`.toggle-replies-btn[data-parent="\${String(post.postId)}"]\`
+      \`.toggle-replies-btn[data-parent="\${post.postId}"]\`
     );
 
 if (!toggleBtn && post.replies.length > 0) {
-      postEl.insertAdjacentHTML('beforeend',
+  postEl.querySelector('.reply-btn').insertAdjacentHTML(
+    'afterend',
     \`
     <button class="toggle-replies-btn" data-parent="\${post.postId}">
       ▼ \${post.replies.length}件の返信
@@ -951,8 +1108,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
 <script>
 
-
-
 document.addEventListener('click', (e) => {
   if (!e.target.classList.contains('reply-btn')) return;
 
@@ -970,124 +1125,96 @@ document.addEventListener('click', (e) => {
 });
 
 
-
 // 返信一覧の開閉
 const openReplies = new Set();
+
 document.addEventListener('click', (e) => {
   const btn = e.target.closest('.toggle-replies-btn');
   if (!btn) return;
 
-  const parentId = String(btn.dataset.parent);
-  const repliesBox = document.querySelector(
-    \`.replies[data-parent="\${parentId}"]\`
-  );
+  const post = btn.closest('.post');
+  const repliesBox = post.querySelector('.replies');
   if (!repliesBox) return;
 
-  const isHidden =
-    repliesBox.style.display === 'none' ||
-    getComputedStyle(repliesBox).display === 'none';
+  const parentId = String(btn.dataset.parent);
+  const isOpen = repliesBox.style.display === 'block';
 
-  repliesBox.style.display = isHidden ? 'block' : 'none';
-
-  if (isHidden) {
-    openReplies.add(parentId);
-    btn.textContent = '▲ 返信を隠す';
-  } else {
+  if (isOpen) {
+    repliesBox.style.display = 'none';
     openReplies.delete(parentId);
-    const count = repliesBox.querySelectorAll('.reply').length;
-    btn.textContent = \`▼ \${count}件の返信\`;
+  } else {
+    repliesBox.style.display = 'block';
+    openReplies.add(parentId);
   }
 });
+
 function restoreOpenReplies() {
-  openReplies.forEach((parentId) => {
+  openReplies.forEach(parentId => {
     const repliesBox = document.querySelector(
       \`.replies[data-parent="\${parentId}"]\`
     );
-    const toggleBtn = document.querySelector(
-      \`.toggle-replies-btn[data-parent="\${parentId}"]\`
-    );
-    if (repliesBox && toggleBtn) {
+    if (repliesBox) {
       repliesBox.style.display = 'block';
-      toggleBtn.textContent = '▲ 返信を隠す';
     }
   });
 }
 
 // 返信フォームの送信処理
+document.addEventListener('submit', async (e) => {
+  const form = e.target;
 
-document.querySelectorAll('.reply-form').forEach((form) => {
-  form.addEventListener('submit', async (e) => {
+  if (!form.classList.contains('reply-form')) return;
 
-    e.preventDefault();
+  e.preventDefault();
 
-    const parentId = form.dataset.parent;
-    const content = form.querySelector('textarea[name="content"]').value;
-    const fileInput = form.querySelector('input[name="icon"]');
+  const parentId = form.dataset.parent;
+  const content = form.querySelector('textarea[name="content"]').value;
+  const fileInput = form.querySelector('input[name="icon"]');
 
-    let imageUrl = null;
-    let thumbnailUrl = null;
+  let imageUrl = null;
+  let thumbnailUrl = null;
 
-   if (fileInput.files.length > 0) {
-      const fd = new FormData();
-      fd.append('icon', fileInput.files[0]);
-      const res = await fetch('/privates/uploads', { method: 'POST', body: fd });
-      const data = await res.json();
-      imageUrl = data.url;
-      thumbnailUrl = data.thumbnail;
-    } 
-
-
-    const res = await fetch(\`/privates/${privateId}/replies\`, {
+  if (fileInput.files.length > 0) {
+    const fd = new FormData();
+    fd.append('icon', fileInput.files[0]);
+    const uploadRes = await fetch('/privates/uploads', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content, parentId, imageUrl, thumbnailUrl }),
+      body: fd
     });
+    const data = await uploadRes.json();
+    imageUrl = data.url;
+    thumbnailUrl = data.thumbnail;
+  }
 
-    const reply = await res.json();
+  const res = await fetch(\`/privates/${privateId}/replies\`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content, parentId, imageUrl, thumbnailUrl }),
+  });
 
-    const currentUser = JSON.parse(
-  document.getElementById("current-user").textContent
-);
+  const reply = await res.json();
 
-const deleteButtonHTML = currentUser.isAdmin ? \`
+  const currentUser = JSON.parse(
+    document.getElementById("current-user").textContent
+  );
+
+  const deleteButtonHTML = currentUser.isAdmin ? \`
     <button class="delete-post-btn" data-postid="\${reply.postId}">
       削除
-      </button>\` : "";
+    </button>\` : "";
 
-    const replyHtml = \`
-      <div class="reply">
-       <hr/>
-        <p>
-          <strong>\${reply.user.username} \${reply.user.isAdmin ? '<span class="admin-badge">👑 管理者</span>' : ''}</strong><br/>
-          <img src="\${reply.user.iconUrl || '/uploads/default.jpg'}" width="40">\${deleteButtonHTML}<br/>
-          \${reply.content}<br/>
-          \${reply.thumbnailUrl ? \`<img src="\${reply.thumbnailUrl}" width="200" class="zoomable" data-full="\${reply.imageUrl}">\` : ''}
-          <small>\${new Date(reply.createdAt).toLocaleString()}</small>
-        </p>
-      </div>
-    \`;
-
-   const parentPost = document.querySelector(
-  \`.post[data-postid="\${parentId}"] .replies\`
-)
-
-if (parentPost) {
-  parentPost.style.display = 'block';
-
-  const postEl = document.querySelector(
-    \`.post[data-postid="\${parentId}"]\`
+  const parentPost = document.querySelector(
+    \`.post[data-postid="\${parentId}"] .replies\`
   );
 
-  const existingBtn = postEl.querySelector(
-    \`.toggle-replies-btn[data-parent="\${String(parentId)}"]\`
-  );
-openReplies.add(String(parentId));
-await fetchPosts();
-}
-    form.reset();
-    form.style.display = 'none';
-    await fetchPosts();
-  });
+  if (parentPost) {
+    parentPost.style.display = 'block';
+  }
+
+  form.reset();
+  form.style.display = 'none';
+
+  await fetchPosts();
 });
 
 </script>

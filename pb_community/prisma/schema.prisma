@@ -34,6 +34,9 @@ model User {
   BannedAt    DateTime @default(now())
   BanExpiresAt  DateTime?
   BanInternalNote String?
+  isLimited     Boolean @default(false)
+  LimitExpiresAt DateTime?
+  LimitedReason String?
   
   @@map(name: "users")
 }
@@ -159,4 +162,11 @@ model Notification {
   createdAt DateTime @default(now())
 
   user      User     @relation(fields: [userId], references: [userId])
+}
+
+model LogPost {
+  postId    String  @id    @default(uuid())
+  content   String  @db.Text
+  createdAt DateTime @default(now())
+  
 }

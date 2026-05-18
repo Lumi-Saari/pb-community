@@ -16,6 +16,25 @@ app.post('/:privateId/posts', async (c) => {
   const existingUser = await prisma.user.findUnique({ where: { userId: user.userId } });
   if (!existingUser) return c.text('ユーザーが存在しません', 400);
 
+  const now = new Date();
+
+if (existingUser.isLimited && existingUser.LimitExpiresAt) {
+  if (new Date(existingUser.LimitExpiresAt) <= now) {
+    await prisma.user.update({
+      where: { userId: existingUser.userId },
+      data: {
+        isLimited: false,
+        LimitedReason: null,
+        LimitExpiresAt: null,
+      },
+    });
+
+    existingUser.isLimited = false;
+  }
+}
+
+  if(existingUser.isLimited) return c.text('あなたは制限されています。',403)
+
   // リクエストボディをまず読み込む
   const body = await c.req.json();
   const content = typeof body.content === 'string' ? body.content : null;
@@ -47,8 +66,8 @@ app.post('/:privateId/posts', async (c) => {
  });
 
  if(!private) return c.text('このプライベートルームは存在しません', 404);
- if(!private.isLocked && !existingUser.isAdmin) {
-  return c.text('このプライベートルームはロックされています。', 403);
+  if (private.isLocked) {
+    return c.text('このプライベートルームはロックされています。投稿できません。', 403);
  }
 
   const post = await prisma.PrivatePost.create({
@@ -67,7 +86,7 @@ include: {
       replies: {
       include: {
         user: { select: { username: true, iconUrl: true, isAdmin: true } },
-        room: { select: { isLocked: true } },
+        private: { select: { isLocked: true } },
       },
     },
    },
@@ -146,6 +165,27 @@ app.post('/:privateId/replies', async (c) => {
   const { user } = c.get('session') ?? {};
   if (!user?.userId) return c.text('ログインが必要です', 401);
 
+  const existingUser = await prisma.user.findUnique({ where:  { userId: user.userId } });
+  if(!existingUser) return c.redirect('/login')
+
+    const now = new Date();
+
+if (existingUser.isLimited && existingUser.LimitExpiresAt) {
+  if (new Date(existingUser.LimitExpiresAt) <= now) {
+    await prisma.user.update({
+      where: { userId: existingUser .userId },
+      data: {
+        isLimited: false,
+        LimitedReason: null,
+        LimitExpiresAt: null,
+      },
+    });
+
+    existingUser.isLimited = false;
+  }
+}
+  if(existingUser.isLimited) return c.text('あなたは制限されています。', 403)
+
   const { privateId } = c.req.param();
   const { content, parentId, imageUrl, thumbnailUrl } = await c.req.json();
 
@@ -211,7 +251,6 @@ broadcast(privateId, "replyCreated", {
 
 // 親投稿のユーザー
 const parentUserId = reply.user.userId;
-console.log("userId:", parentUserId);
 // 自分自身には通知しない
 if (parentUserId !== user.userId) {
 
@@ -297,6 +336,11 @@ app.delete('/:privateId/posts/:postId', async (c) => {
     data: { isDeleted: true },
   });
 
+  const deleted = await prisma.PrivatePost.findUnique({
+    where: { postId },
+    select: { content: true, user: { select: { username: true } } }, 
+  })
+
 
   // 投稿者に通知を送る
 
@@ -306,6 +350,12 @@ app.delete('/:privateId/posts/:postId', async (c) => {
       message: `あなたの投稿が管理者によって削除されました`,
       url: `/privates/${post.privateId}`,
     },
+  })
+
+  await prisma.LogPost.create({
+    data: {
+      content: `${deleted.user.username}さんの${deleted.content}という投稿を削除しました。`
+    }
   })
 
   return c.json({ ok: true });
@@ -321,9 +371,20 @@ app.post('/:privateId/posts/:postId/lock', async (c) => {
     403
    );
 
+   const Limited = await prisma.PrivatePost.findUnique({
+    where: { postId },
+    select: { content: true, user: { select: { username: true } } }
+   })
+
    await prisma.privatePost.update({
     where: { postId },
     data: { isLocked: true }
+   })
+
+   await prisma.LogPost.create({
+    data:{
+      content: `${Limited.user.username}さんの「${Limited.content}」という投稿をロックしました。`
+    }
    })
 
    return c.json({success: true, message: '返信をロックしました。'});
@@ -339,10 +400,21 @@ app.post('/:privateId/posts/:postId/unlock', async (c) => {
     403
    );
 
+   const Limited = await prisma.PrivatePost.findUnique({
+    where: { postId },
+    select: { content: true, user:{ select: { username: true } } }
+   })
+
    await prisma.privatePost.update({
     where:  { postId },
     data: {isLocked: false }
    });
+
+   await prisma.LogPost.create({
+    data:{
+      content:`${Limited.user.username}さんの「${Limited.content}」という投稿のロックを解除しました。`
+    }
+   })
 
   return c.json({success: true, message: '返信のロックを解除しました。'});
 });
