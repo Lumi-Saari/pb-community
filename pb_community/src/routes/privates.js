@@ -548,6 +548,87 @@ const unlockMessageHTML = (p) =>
     ? `<button class="posts-unlock-btn" data-postid="${p.postId}">ロック解除</button>`
     : "";
 
+const reportButtonHTML = (p) =>
+  `<button type="button" class="report-post-btn js-post-modal-open" data-post-id"${p.postId}">
+ 通報
+</button>
+
+ <div class="modal js-post-modal">
+  <div class="modal-container">
+
+  <button type="button" class="modal-close js-post-modal-close">
+   ×
+  </button>
+
+  <div class="modal-content">
+   <h2>違反内容はなんですか？</h2>
+
+   <form class="reasonForm">
+    <input type="hidden" name="targetUserId" value="${p.postId}">
+
+    <div class="reason-list">
+     <label>
+      <input type="checkbox" name="reason" value="spam">
+       スパム・宣伝行為
+     </label>
+
+     <label>
+      <input type="checkbox" name="reason" value="defamation">
+       誹謗中傷・暴言
+     </label>
+
+     <label>
+      <input type="checkbox" name="reason" value="bad">
+       不適切な内容・画像
+     </label>
+
+     <label>
+      <input type="checkbox" name="reason" value="infomation">
+       個人情報の投稿       
+     </label>
+
+     <label>
+      <input type="checkbox" name="reason" value="copyright">
+       著作権の侵害
+     </label>
+
+     <label>
+      <input type="checkbox" name="reason" value="danger">
+       
+       危険行為の助長
+     </label>
+
+     <label>
+      <input
+        type="checkbox"
+        name="reason"
+        value="others"
+        class="postotherCheck"
+      >
+       その他
+     </label>
+    </div>
+
+    <div class="postotherBox" style="display: none;">
+     <textarea
+       name="postotherDetail"
+       placeholder="理由を入力してください"
+      ></textarea>
+    </div>
+
+    <button
+      type="button"
+      class="post-reason-btn"
+      data-postid="${p.postId}"
+    >
+     通報する
+    </button>
+   </form>
+  </div>
+
+ </div>
+</div>`
+
 // 判定用フラグ
 const notifyEnabled = !!(setting && setting.notify);
 
@@ -565,39 +646,18 @@ const isAdmin = user.isAdmin;
 
 const postList = tree.map(p => {
   return `
-<style>
-hr.end {
-  border: none;
-  border-top: 1px solid black;
-}
-.admin-badge {
-  background: #ffd700;
-  color: #000;
-  font-size: 12px;
-  padding: 2px 6px;
-  border-radius: 6px;
-  margin-left: 6px;
-}
-</style>
-
-<style type="text/css" scoped>
-ul {
-    display: -webkit-flex;
-    display: flex;
-}
-</style>
-
   <div class="post" data-postid="${p.postId}">
-    <p>
+
       <strong>${p.user.username} ${p.user.isAdmin ? '<span class="admin-badge">👑 管理者</span>' : ''}</strong><br/>
       <img src="${p.user.iconUrl || '/uploads/default.jpg'}" width="40">
       ${deleteButtonHTML(p)}<br/>
       ${lockMessageHTML(p)}
       ${unlockMessageHTML(p)}
-      ${p.content || ''}<br/>
+      ${reportButtonHTML(p)}<br/>
+      <div class="post-content">${p.content || ''}</div>
       ${p.thumbnailUrl ? `<img src="${p.thumbnailUrl}" width="200" class="zoomable" data-full="${p.imageUrl}">` : ''}
-      <small>${new Date(p.createdAt).toLocaleString()}</small>
-    </p>
+      <small>${new Date(p.createdAt).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}</small>
+
 
     <span>
 
@@ -668,6 +728,70 @@ ul {
       border-radius: 6px;
       margin-left: 6px;
     }
+
+.modal{
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  text-align: center;
+  background: rgba(0,0,0,50%);
+  padding: 40px 20px;
+  overflow: auto;
+  opacity: 0;
+  visibility: hidden;
+  transition: .3s;
+  box-sizing: border-box;
+}
+
+.modal:before{
+  content: "";
+  display: inline-block;
+  vertical-align: middle;
+  height: 100%;
+  margin-left: -0.2em;
+}
+
+.modal.is-active{
+  opacity: 1;
+  visibility: visible;
+}
+
+.modal-container{
+  position: relative;
+  display: inline-block;
+  vertical-align: middle;
+  max-width: 600px;
+  width: 90%;
+}
+
+.modal-close{
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  top: -20px;
+  right: -20px;
+  width: 40px;
+  height: 40px;
+  color: #fff;
+  background: #000;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.modal-content{
+  background: #fff;
+  text-align: left;
+  line-height: 1.8;
+  padding: 20px;
+}
+
+.modal-content p{
+  margin: 1em 0;
+}
+
     </style>
     <a href="/privates/lists">プライベートルーム一覧に戻る</a>
     <h4>説明: ${memo || 'なし'}</h4>
@@ -703,6 +827,71 @@ ul {
      <form method="POST" action="/privates/${privateId}/delete" onsubmit="return confirm('本当にこのルームを削除しますか？')">
 <button type="submit">このルームを削除する</button>
 </form>
+
+<button class="report-private-btn js-private-modal-open">このルームを通報する</button>
+
+<!-- モーダル本体 -->
+<div class="modal js-private-modal">
+  <div class="modal-container">
+
+    <!-- 閉じるボタン -->
+    <button type="button" class="modal-close js-private-modal-close">
+      ×
+    </button>
+
+    <!-- モーダル内容 -->
+    <div class="modal-content">
+      <h2>違反内容はなんですか？</h2>
+     <form name="reasonForm">
+      <div class="reason-list">
+        <label>
+          <input type="checkbox" name="reason" value="spam">
+          スパムコミュニティ
+        </label>
+
+        <label>
+          <input type="checkbox" name="reason" value="vandalism">
+          荒らし目的
+        </label>
+
+        <label>
+          <input type="checkbox" name="reason" value="danger">
+          危険な内容
+        </label>
+
+        <label>
+          <input type="checkbox" name="reason" value="bad">
+          不適切なルーム名・説明
+        </label>
+
+        <label>
+          <input
+            type="checkbox"
+            name="reason"
+            value="others"
+            id="privateotherCheck"
+          >
+          その他
+        </label>
+
+      </div>
+
+      <!-- その他入力欄 -->
+      <div id="privateotherBox" style="display: none;">
+        <textarea
+          name="privateotherDetail"
+          placeholder="理由を入力してください"
+        ></textarea>
+      </div>
+    </form>
+
+      <div>
+        <button id="checkBtn" class="private-reason-btn">通報する</button>
+      </div>
+
+    </div>
+  </div>
+</div>
 
 <div id="postList">
   ${
@@ -787,24 +976,106 @@ const unlockButtonHTML = currentUser.isAdmin ? \`
  \`
   : '';
 
+const reportButtonHTML = !isLocked && !isLimited? \`
+<button type="button" class="report-post-btn js-post-modal-open" data-post-id"\${post.postId}">
+ 通報
+</button>
+
+ <div class="modal js-post-modal">
+  <div class="modal-container">
+
+  <button type="button" class="modal-close js-post-modal-close">
+   ×
+  </button>
+
+  <div class="modal-content">
+   <h2>違反内容はなんですか？</h2>
+
+   <form class="reasonForm">
+    <input type="hidden" name="targetUserId" value="\${post.postId}">
+
+    <div class="reason-list">
+     <label>
+      <input type="checkbox" name="reason" value="spam">
+       スパム・宣伝行為
+     </label>
+
+     <label>
+      <input type="checkbox" name="reason" value="defamation">
+       誹謗中傷・暴言
+     </label>
+
+     <label>
+      <input type="checkbox" name="reason" value="bad">
+       不適切な内容・画像
+     </label>
+
+     <label>
+      <input type="checkbox" name="reason" value="infomation">
+       個人情報の投稿
+     </label>
+
+     <label>
+      <input type="checkbox" name="reason" value="copyright">
+       著作権の侵害
+     </label>
+
+     <label>
+      <input type="checkbox" name="reason" value="danger">
+       危険行為の助長
+     </label>
+
+     <label>
+      <input
+        type="checkbox"
+        name="reason"
+        value="others"
+        class="postotherCheck"
+      >
+       その他
+     </label>
+    </div>
+
+    <div class="postotherBox" style="display: none;">
+     <textarea
+       name="postotherDetail"
+       placeholder="理由を入力してください"
+      ></textarea>
+    </div>
+
+    <button
+      type="button"
+      class="post-reason-btn"
+      data-postid="\${post.postId}"
+    >
+     通報する
+    </button>
+   </form>
+  </div>
+
+ </div>
+</div>
+\`
+   : '';
+
 const deleteButtonHTML =
   currentUser.isAdmin === true || currentUser.isAdmin === "true"
     ? \`<button class="delete-post-btn" data-postid="\${post.postId}">削除</button>\`
     : "";
+
   return \`
     <div class="post" data-postid="\${post.postId}">
-      <p>
         <strong>\${post.user.username}\${post.user.isAdmin ? '<span class="admin-badge">👑 管理者</span>' : ''}</strong><br/>
-        <img src="\${post.user.iconUrl || '/uploads/default.jpg'}" width="40">\${deleteButtonHTML}<br/>
+        <img src="\${post.user.iconUrl || '/uploads/default.jpg'}" width="40">\${deleteButtonHTML}
         \${LockMessageHTML}
         \${unlockButtonHTML}
-        \${post.content || ''}<br/>
+        \${reportButtonHTML}<br/>
+        <div class="post-content">\${post.content || ''}</div>
         \${post.thumbnailUrl
           ? \`<img src="\${post.thumbnailUrl}" width="200" class="zoomable" data-full="\${post.imageUrl}">\`
           : ''}
 
         <small>\${new Date(post.createdAt).toLocaleString()}</small>
-      </p>
 
       \${
           isLocked || isLimited
@@ -935,6 +1206,99 @@ document.addEventListener("click", async (e) => {
   }
 });
 
+const postotherCheck = document.getElementById('postotherCheck');
+const postotherBox = document.getElementById('postotherBox');
+
+document.addEventListener('change', (e) => {
+  if(!e.target.classList.contains('postotherCheck')) return;
+  
+  const post = e.target.closest('.post');
+  const otherBox = post.querySelector('.postotherBox');
+  
+  otherBox.style.display = 
+    e.target.checked ? 'block' : 'none';
+});
+
+document.addEventListener('click', (e) => {
+  const openBtn = e.target.closest('.js-post-modal-open');
+  if (!openBtn) return;
+  
+  const post = openBtn.closest('.post');
+  const modal = post.querySelector('.js-post-modal');
+  if (modal?.classList.contains('js-post-modal')) {
+   modal.classList.add('is-active');
+  }
+ });
+
+document.addEventListener('click', (e) => {
+  const closeBtn = e.target.closest('.js-post-modal-close');
+  if (!closeBtn) return;
+
+  const modal = closeBtn.closest('.js-post-modal');
+  
+  if(modal) {
+    modal.classList.remove('is-active');
+  }
+ });
+
+
+document.addEventListener('click', (e) => {
+  if (e.target.classList.contains('js-post-modal-close')) {
+    const modal = e.target.closest('.js-post-modal');
+    
+    if (modal) {
+      modal.classList.remove('is-active');
+    }
+  }
+});
+
+document.addEventListener('click', async (e) => {
+  if(!e.target.classList.contains('post-reason-btn')) return;
+  
+  const post = e.target.closest('.post');
+console.log(post);
+  
+  const checkboxes = document.querySelectorAll('input[name="reason"]:checked');
+  const arr = Array.from(checkboxes).map(cb => cb.value);
+  
+  const スパム宣伝行為 = arr.includes('spam') ? 'スパム宣伝行為' : '';
+  const 誹謗中傷や暴言 = arr.includes('defamation') ? '誹謗中傷・暴言' : '';
+  const 不適切な内容や画像 = arr.includes('bad') ? '不適切な内容・画像' : '';
+  const 個人情報の投稿 = arr.includes('infomation') ? '個人情報の投稿' : '';
+  const 著作権の侵害 = arr.includes('copyright') ? '著作権の侵害' : '';
+  const 危険行為の助長 = arr.includes('danger') ? '危険行為の助長' : '';
+  const その他理由 = arr.includes('others') ? post.querySelector('textarea[name="postotherDetail"]').value : '';
+
+  const username = post.querySelector('strong').textContent;
+  
+  const content = post.querySelector('.post-content').textContent;
+  const isReported = \`ルーム:${private.privateName}の\${username}さんの投稿"\${content}"\`;
+
+  const reportData = {
+    isReported: isReported,
+    reasons: [スパム宣伝行為, 誹謗中傷や暴言, 不適切な内容や画像, 個人情報の投稿, 著作権の侵害, 危険行為の助長, その他理由].filter(Boolean)
+  };
+
+  const res = await fetch(\`/admin/reports/posts\`, {
+    method: 'POST',
+    headers: { 'Content-Type' : 'application/json' },
+    body: JSON.stringify(reportData)
+  });
+
+  if(res.ok) {
+    alert('この投稿を通報しました');
+  } else {
+    alert('この投稿の通報に失敗しました。もう一度お試しください。');
+  }
+
+  if(res.ok) {
+  const modal = post.querySelector('.js-post-modal');
+   if (modal) {
+     modal.classList.remove('is-active');
+    }
+  }
+});
+  
 document.addEventListener('click', async (e) => {
   const btn = e.target.closest('.posts-lock-btn');
   if(!btn) return;
@@ -980,6 +1344,7 @@ document. addEventListener('click', async (e) => {
 
 function renderAllPosts(posts) {
   const container = document.getElementById('postList');
+ if (!container) return;
 
   const serverPostIds = new Set(posts.map(p => String(p.postId)));
 
@@ -1218,6 +1583,73 @@ document.addEventListener('submit', async (e) => {
 });
 
 </script>
+
+<script>
+addEventListener('change', (e) => {
+  if (e.target !== privateotherCheck) return;
+  otherBox.style.display =
+    privateotherCheck.checked ? 'block' : 'none';
+});
+
+//要素を取得
+const privatemodal = document.querySelector('.js-private-modal'),
+      privateopen = document.querySelector('.js-private-modal-open'),
+      privateclose = document.querySelector('.js-private-modal-close');
+
+//「開くボタン」をクリックしてモーダルを開く
+function modalOpen() {
+  privatemodal.classList.add('is-active');
+}
+privateopen.addEventListener('click', modalOpen);
+
+//「閉じるボタン」をクリックしてモーダルを閉じる
+function modalClose() {
+  privatemodal.classList.remove('is-active');
+}
+privateclose.addEventListener('click', modalClose);
+
+//「モーダルの外側」をクリックしてモーダルを閉じる
+function modalOut(e) {
+  if (e.target == privatemodal) {
+    privatemodal.classList.remove('is-active');
+  }
+}
+addEventListener('click', modalOut);
+
+document.querySelectorAll('.private-reason-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const checkboxes = document.querySelectorAll('input[name="reason"]:checked');
+    const arr = Array.from(checkboxes).map(cb => cb.value);
+    
+    const スパムコミュニティ = arr.includes('spam') ? 'スパムコミュニティ' : '';
+    const 荒らし目的 = arr.includes('vandalism') ? '荒らし目的' : '';
+    const 危険な内容 = arr.includes('danger') ? '危険な内容' : '';
+    const 不適切なルーム名や説明 = arr.includes('bad') ? '不適切なルーム名・説明' : '';
+    const その他理由 = arr.includes('others') ? document.querySelector('textarea[name="otherDetail"]').value : '';
+
+    const privateName = \`プライベートルーム: ${private.privateName}\`;
+
+    const reportData = {
+      isReported: privateName,
+      reasons: [スパムコミュニティ, 荒らし目的, 危険な内容, 不適切なルーム名や説明, その他理由].filter(Boolean)
+    };
+
+    const res = await fetch('/admin/reports/posts', {
+       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(reportData)
+      });
+
+      if(res.ok) {
+        alert('このルームを通報しました。');
+      } else {
+        alert('このルームの通報に失敗しました。もう一度お試しください。');
+     }
+
+    document.querySelector('.js-modal-close').click();
+    });
+  });
+</script>
 `);
 
 });
@@ -1226,7 +1658,7 @@ document.addEventListener('submit', async (e) => {
 // 通知オン／オフ切り替え
 app.post('/:privateId/notify', async (c) => {
   const { user } = c.get('session') ?? {};
-  if (!user?.userId) return c.text('ログインしてください', 401);
+  if (!user?.userId) return c.redirect('/login');
 
   const { privateId } = c.req.param();
   const { notify } = await c.req.json();

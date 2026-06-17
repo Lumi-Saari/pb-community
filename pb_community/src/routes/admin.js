@@ -428,25 +428,6 @@ admin.post('/unlimit/:userId', async (c) => {
   return c.json({ success: true, message: 'ユーザーの制限を解除しました。'});
 })
 
-admin.post('/logs/posts', async (c) => {
-  const body = await c.req.parseBody();
-  const content = typeof body.content === 'string' ? body.content : null;
-
-  const post = await prisma.LogPost.create({
-    data: { content },
-  });
-
-  return c.redirect('/admin/logs');
-});
-
-admin.get('/logs/posts', async (c) => {
-  const posts = await prisma.LogPost.findMany({
-    orderBy: { createdAt: 'asc' },
-  });
-
-  return c.json(posts);
-})
-
 //ログ管理ページ
 admin.get('/logs', async (c) => {
    const posts = await prisma.LogPost.findMany({
@@ -477,6 +458,88 @@ admin.get('/logs', async (c) => {
     </form>
   `);
 });
+
+admin.get('/reports', async (c) => {
+  const reports = await prisma.Reports.findMany({
+    orderBy: { createdAt: 'asc' },
+    select: {
+       reporter: true ,
+       solution: true,
+       reason: true,
+       isReported: true,
+       createdAt: true,
+       reportId: true,
+      }
+  });
+
+
+  const reportList = reports.map(
+    (r) => `
+    <div class="report" data-reportid="${r.reportId}">
+     <p>
+       <strong>${r.isReported}が通報されました</strong>
+       <button class="solution-btn" data-report-id="${r.reportId}" data-solution="${r.solution ? 'true' : 'false'}">
+        ${r.solution ? '✅ 解決' : '⚠️未解決'}
+        </button>
+       <br/>
+       通報者:${r.reporter}
+       理由:${r.reason}
+       <small>通報日時:${r.createdAt.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}</small>
+       </p>
+       <hr/>
+       `
+   ).join('')
+  
+
+  return c.html(`
+    <h1>通報管理</h1>
+    <a href="/admin">管理者ページに戻る</a>
+    <div id="reportList">
+     ${reportList || '<p>通報はまだありません</p>'}
+     </div>
+    <script src="/solution.js"></script>
+    `);
+});
+
+admin.post('/reports/posts', async (c) => {
+  const { user } = c.get('session');
+  if(!user) return c.redirect('/login')
+
+  const body = await c.req.json();
+
+    const reportData = {
+      reporter: user.username || '名無しユーザー',
+      reason: body.reasons?.join(', ') || '理由なし',
+      isReported: body.isReported || '不明',
+    };
+
+  await prisma.Reports.create({
+    data:{
+      reporter: reportData.reporter,
+      reason: reportData.reason,
+      isReported: reportData.isReported
+    }
+  })
+
+  return c.json({ success: true, message: '通報を送信しました。' });
+})
+
+admin.post('/reports/posts/:reportId/solution', async (c) => {
+  const { user } = c.get('session') ?? {};
+  if(!user?.userId)return c.redirect('/login');
+
+  const { reportId } = c.req.param();
+  const report = await prisma.Reports.findUnique({
+    where: { reportId: (reportId) },
+  });
+
+  await prisma.Reports.update({
+    where: { reportId: (reportId) },
+    data: { solution: !report.solution },
+  });
+
+  return c.json({ success: true, message: '更新しました。' });
+})
 
 // ユーザー管理ページ
 admin.get('/users', requireAdmin(), async (c) => {

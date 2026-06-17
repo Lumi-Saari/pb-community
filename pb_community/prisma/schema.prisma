@@ -170,3 +170,12 @@ model LogPost {
   createdAt DateTime @default(now())
   
 }
+
+model Reports {
+  reportId   String   @id @default(uuid())
+  isReported String
+  reporter  String
+  reason     String?
+  solution   Boolean @default(false)
+  createdAt  DateTime @default(now())
+}
