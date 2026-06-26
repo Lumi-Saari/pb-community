@@ -179,3 +179,10 @@ model Reports {
   solution   Boolean @default(false)
   createdAt  DateTime @default(now())
 }
+
+model News {
+  newsId     String   @id @default(uuid())
+  title      String   @db.Text
+  content    String   @db.Text
+  createdAt  DateTime @default(now())
+}

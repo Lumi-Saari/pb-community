@@ -629,6 +629,86 @@ const reportButtonHTML = (p) =>
  </div>
 </div>`
 
+const reportHTML = (p) => `
+  <button type="button" class="report-post-btn js-reply-modal-open" data-post-id="${p.postId}">
+    通報
+  </button>
+<div class="modal js-reply-modal">
+  <div class="modal-container">
+
+  <button type="button" class="modal-close js-reply-modal-close">
+   ×
+  </button>
+
+  <div class="modal-content">
+   <h2>違反内容はなんですか？</h2>
+
+   <form class="reasonForm">
+    <input type="hidden" name="targetUserId" value="${p.postId}">
+
+    <div class="reason-list">
+     <label>
+      <input type="checkbox" name="reason" value="spam">
+       スパム・宣伝行為
+     </label>
+
+     <label>
+      <input type="checkbox" name="reason" value="defamation">
+       誹謗中傷・暴言
+     </label>
+
+     <label>
+      <input type="checkbox" name="reason" value="bad">
+       不適切な内容・画像
+     </label>
+
+     <label>
+      <input type="checkbox" name="reason" value="infomation">
+       個人情報の投稿       
+     </label>
+
+     <label>
+      <input type="checkbox" name="reason" value="copyright">
+       著作権の侵害
+     </label>
+
+     <label>
+      <input type="checkbox" name="reason" value="danger">
+       
+       危険行為の助長
+     </label>
+
+     <label>
+      <input
+        type="checkbox"
+        name="reason"
+        value="others"
+        class="replyotherCheck"
+      >
+       その他
+     </label>
+    </div>
+
+    <div class="replyotherBox" style="display: none;">
+     <textarea
+       name="replyotherDetail"
+       placeholder="理由を入力してください"
+      ></textarea>
+    </div>
+
+    <button
+      type="button"
+      class="reply-reason-btn"
+      data-postid="${p.postId}"
+    >
+     通報する
+    </button>
+   </form>
+  </div>
+
+ </div>
+</div>`;
+
 // 判定用フラグ
 const notifyEnabled = !!(setting && setting.notify);
 
@@ -703,7 +783,7 @@ const postList = tree.map(p => {
              <hr/>
             <p>
               <strong>${r.user.username}${r.user.isAdmin ? '<span class="admin-badge">👑 管理者</span>' : ''}</strong><br/>
-              <img src="${r.user.iconUrl || '/uploads/default.jpg'}" width="40">
+              <img src="${r.user.iconUrl || '/uploads/default.jpg'}" width="40">${reportHTML(p)}
               ${r.content}<br/>
               ${r.thumbnailUrl ? `<img src="${r.thumbnailUrl}" width="200" class="zoomable" data-full="${r.imageUrl}">` : ''}
               <small>${new Date(r.createdAt).toLocaleString()}</small>
@@ -1157,7 +1237,7 @@ form.addEventListener('submit', async (e) => {
 
 	let deleting = false;
 
-document.addEventListener("click", async (e) => {
+document.addEventListener('click', async (e) => {
   if (!e.target.classList.contains("delete-post-btn")) return;
 
   if (deleting) return;
@@ -1256,8 +1336,7 @@ document.addEventListener('click', async (e) => {
   if(!e.target.classList.contains('post-reason-btn')) return;
   
   const post = e.target.closest('.post');
-console.log(post);
-  
+
   const checkboxes = document.querySelectorAll('input[name="reason"]:checked');
   const arr = Array.from(checkboxes).map(cb => cb.value);
   
@@ -1408,14 +1487,95 @@ const deleteButtonHTML = currentUser.isAdmin ? \`
       削除
       </button>\` : "";
 
+const reportHTML = \`
+  <button type="button" class="report-post-btn js-reply-modal-open" data-post-id="\${post.postId}">
+    通報
+  </button>
+<div class="modal js-reply-modal">
+  <div class="modal-container">
+
+  <button type="button" class="modal-close js-reply-modal-close">
+   ×
+  </button>
+
+  <div class="modal-content">
+   <h2>違反内容はなんですか？</h2>
+
+   <form class="reasonForm">
+    <input type="hidden" name="targetUserId" value="\${post.postId}">
+
+    <div class="reason-list">
+     <label>
+      <input type="checkbox" name="reason" value="spam">
+       スパム・宣伝行為
+     </label>
+
+     <label>
+      <input type="checkbox" name="reason" value="defamation">
+       誹謗中傷・暴言
+     </label>
+
+     <label>
+      <input type="checkbox" name="reason" value="bad">
+       不適切な内容・画像
+     </label>
+
+     <label>
+      <input type="checkbox" name="reason" value="infomation">
+       個人情報の投稿       
+     </label>
+
+     <label>
+      <input type="checkbox" name="reason" value="copyright">
+       著作権の侵害
+     </label>
+
+     <label>
+      <input type="checkbox" name="reason" value="danger">
+       
+       危険行為の助長
+     </label>
+
+     <label>
+      <input
+        type="checkbox"
+        name="reason"
+        value="others"
+        class="replyotherCheck"
+      >
+       その他
+     </label>
+    </div>
+
+    <div class="replyotherBox" style="display: none;">
+     <textarea
+       name="replyotherDetail"
+       placeholder="理由を入力してください"
+      ></textarea>
+    </div>
+
+    <button
+      type="button"
+      class="reply-reason-btn"
+      data-postid="\${post.postId}"
+    >
+     通報する
+    </button>
+   </form>
+  </div>
+
+ </div>
+</div>\`;
+
 // 中身だけ更新する（.replies 自体は作り直さない）
 repliesBox.innerHTML = post.replies.map(r => \`
   <div class="reply">
     <hr/>
     <p>
       <strong>\${r.user.username}\${r.user.isAdmin ? '<span class="admin-badge">👑 管理者</span>' : ''}</strong><br/>
-      <img src="\${r.user.iconUrl || '/uploads/default.jpg'}" width="40">\${deleteButtonHTML}<br/> 
-      \${r.content}<br/>
+      <img src="\${r.user.iconUrl || '/uploads/default.jpg'}" width="40">\${deleteButtonHTML}
+      \${reportHTML}
+     <div class="reply-content"> \${r.content}</div>
       \${r.thumbnailUrl
         ? \`<img src="\${r.thumbnailUrl}" width="200" class="zoomable" data-full="\${r.imageUrl}">\`
         : ''}
@@ -1429,6 +1589,10 @@ repliesBox.innerHTML = post.replies.map(r => \`
 }
 
 async function fetchPosts() {
+if (document.querySelector('.js-reply-modal.is-active')) {
+    return;
+  }
+
   try {
     const res = await fetch(\`/privates/${privateId}/posts\`);
     const posts = await res.json();
@@ -1441,6 +1605,99 @@ async function fetchPosts() {
 
   fetchPosts();
 startPolling();
+
+const replyotherCheck = document.getElementById('replyotherCheck');
+const replyotherBox = document.getElementById('replyotherBox');
+
+document.addEventListener('change', (e) => {
+  if (!e.target.classList.contains('replyotherCheck')) return;
+
+  const reply = e.target.closest('.reply');
+  const otherBox = reply.querySelector('.replyotherBox');
+
+  otherBox.style.display =
+    e.target.checked ? 'block' : 'none';
+});
+
+document.addEventListener('click', (e) => {
+  const openBtn = e.target.closest('.js-reply-modal-open');
+
+  if (!openBtn) return;
+
+   const reply = openBtn.closest('.reply');
+  const modal = reply.querySelector('.js-reply-modal');
+  if (modal?.classList.contains('js-reply-modal')) {
+    modal.classList.add('is-active');
+  }
+});
+
+document.addEventListener('click', (e) => {
+  const closeBtn = e.target.closest('.js-reply-modal-close');
+
+  if (!closeBtn) return;
+
+  const modal = closeBtn.closest('.js-reply-modal');
+
+  if (modal) {
+    modal.classList.remove('is-active');
+  }
+});
+
+document.addEventListener('click', (e) => {
+  if (e.target.classList.contains('js-reply-modal-close')) {
+    const modal = e.target.closest('.js-reply-modal');
+    
+    if (modal) {
+      modal.classList.remove('is-active');
+    } 
+  }
+});
+  
+document.addEventListener('click', async (e) => {
+  if (!e.target.classList.contains('reply-reason-btn')) return;
+
+   const reply = e.target.closest('.reply'); 
+
+    const checkboxes = document.querySelectorAll('input[name="reason"]:checked');
+    const arr = Array.from(checkboxes).map(cb => cb.value);
+    
+    const スパム宣伝行為 = arr.includes('spam') ? 'スパム宣伝行為' : '';
+    const 誹謗中傷や暴言 = arr.includes('defamation') ? '誹謗中傷・暴言' : '';
+    const 不適切な内容や画像 = arr.includes('bad') ? '不適切な内容・画像' : '';
+    const 個人情報の投稿 = arr.includes('infomation') ? '個人情報の投稿' : '';
+    const 著作権の侵害 = arr.includes('copyright') ? '著作権の侵害' : '';
+    const 危険行為の助長 = arr.includes('danger') ? '危険行為の助長' : '';
+    const その他理由 = arr.includes('others') ? document.querySelector('textarea[name="replyotherDetail"]').value : '';
+
+    const username = reply.querySelector('strong').textContent;
+
+    const content = reply.querySelector('.reply-content').textContent;
+    const isReported = \`ルーム：${private.privateName}の\${username}さんの返信:"\${content}"\`;
+
+    const reportData = {
+       isReported: isReported,
+       reasons: [スパム宣伝行為, 誹謗中傷や暴言, 不適切な内容や画像, 個人情報の投稿, 著作権の侵害, 危険行為の助長, その他理由].filter(Boolean)
+    };
+    
+    const res = await fetch(\`/admin/reports/posts\`, {
+      method: 'POST',
+      headers: { 'Content-Type' : 'application/json' },
+      body: JSON.stringify(reportData)
+    });
+
+    if(res.ok) {
+       alert('この投稿を通報しました');
+    } else {
+       alert('この投稿の通報に失敗しました。もう一度お試しください。');
+    }
+
+    if (res.ok) {
+      const modal = reply.querySelector('.js-reply-modal');
+       if (modal) {
+         modal.classList.remove('is-active');
+       }
+    }
+  });
 
 
 // 画像クリックで拡大

@@ -67,7 +67,15 @@ if (user.isLimited && user.LimitExpiresAt) {
        setInterval(updateNotifCount, 10000); // 10秒ごとに更新
       </script>
       </div>
+  
+      <br/>
+
+      <div>
+       <a href="/news">お知らせ</a>
       </div>
+
+      <br/>
+
       <div>
         <a href="/users">ユーザー一覧</a>
       </div>

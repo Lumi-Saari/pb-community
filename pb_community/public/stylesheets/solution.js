@@ -1,3 +1,4 @@
+console.log("solution.js が読み込まれました");
 document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('click', async (e) => {
     const btn = e.target.closest('.solution-btn');

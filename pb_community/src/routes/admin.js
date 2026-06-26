@@ -54,7 +54,6 @@ admin.get('/', async (c) => {
       )
   }
 
-//TODO　後で
 
   return c.html(
     layout(
@@ -449,7 +448,7 @@ admin.get('/logs', async (c) => {
     <h1>ログ</h1>
     <a href="/admin">管理者ページに戻る</a>
     <div id="postList">
-     ${postList || '<p>ログはまだありません</p>'}
+     ${postList || 'ログはまだありません'}
     </div>
     
     <form method="POST" action="/admin/logs/posts">
@@ -458,6 +457,30 @@ admin.get('/logs', async (c) => {
     </form>
   `);
 });
+
+
+admin.post('/logs/posts', async (c) => {
+    const { user } = c.get('session');
+  if(!user.isAdmin) return c.redirect('/logs')
+  const body = await c.req.parseBody();
+  const content = typeof body.content === 'string' ? body.content : null;
+
+  const post = await prisma.LogPost.create({
+    data: { content },
+  });
+
+  return c.redirect('/admin/logs');
+});
+
+admin.get('/logs/posts', async (c) => {
+  const { user } = c.get('session');
+  if(!user.isAdmin) return c.redirect('/logs')
+  const posts = await prisma.LogPost.findMany({
+    orderBy: { createdAt: 'asc' },
+  });
+
+  return c.json(posts);
+})
 
 admin.get('/reports', async (c) => {
   const reports = await prisma.Reports.findMany({
@@ -497,7 +520,46 @@ admin.get('/reports', async (c) => {
     <div id="reportList">
      ${reportList || '<p>通報はまだありません</p>'}
      </div>
-    <script src="/solution.js"></script>
+      <script>
+        document.querySelectorAll('.solution-btn').forEach(btn => {
+          btn.addEventListener('click', async () => {
+
+            const reportId = btn.getAttribute('data-report-id');
+
+            const currentSolution = btn.getAttribute('data-solution') === 'true';
+
+            const outcome = prompt('通報の対応結果を入力してください');
+            if (outcome === null) return;
+
+            const confirmed = confirm('通報を解決済みにしますか？');
+            if (!confirmed) return;
+            
+            const res = await fetch(\`/admin/reports/posts/\${reportId}/solution\`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ outcome, solution: !currentSolution }),
+            });
+
+           if (res.ok) {
+  alert('通報の状態を更新しました。');
+
+  const newState = !currentSolution;
+
+  btn.dataset.solution = String(newState);
+  btn.textContent = newState
+    ? '✅ 解決'
+    : '⚠️ 未解決';
+
+  // 必要なら data-solution も更新
+  btn.setAttribute('data-solution', String(newState));
+
+  location.reload(); // リロードが必要なら残す
+} else {
+  alert('通報の状態の更新に失敗しました。');
+}
+            });
+});
+          </script>
     `);
 });
 
@@ -527,17 +589,43 @@ admin.post('/reports/posts', async (c) => {
 admin.post('/reports/posts/:reportId/solution', async (c) => {
   const { user } = c.get('session') ?? {};
   if(!user?.userId)return c.redirect('/login');
+  const isAdmin = user.isAdmin;
+  if(!isAdmin) return c.html(
+   `<h1>アクセス拒否</h1><p>管理者権限が必要です。</p><a href="/">トップページへ戻る</a>`,
+    403
+  )
 
   const { reportId } = c.req.param();
+  const { outcome, solution } = await c.req.json();
+
   const report = await prisma.Reports.findUnique({
-    where: { reportId: (reportId) },
+    where: { reportId: reportId },
+    select: { isReported: true, reporter: true },
+  });
+ 
+  console.log('report:', report);
+  if (!report) {
+    return c.json({ success: false, message: '通報が見つかりませんでした。' });
+  }
+
+  const userId = await prisma.user.findUnique({
+    where: { username: report.reporter },
+    select: { userId: true },
+  }).then(u => u?.userId);
+
+  await prisma.notification.create({
+     data:{ 
+      userId: userId,
+      message: `${report.isReported}の通報ありがとうございました。${outcome}`,
+     }
   });
 
-  await prisma.Reports.update({
-    where: { reportId: (reportId) },
-    data: { solution: !report.solution },
-  });
-
+   await prisma.Reports.update({
+  where: { reportId },
+  data: {
+    solution: true,
+  },
+});
   return c.json({ success: true, message: '更新しました。' });
 })
 

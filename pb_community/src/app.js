@@ -30,6 +30,7 @@ const notificationRouter = require('./routes/notifications');
 const uploadRouter = require('./routes/uploads');
 const adminRouter = require('./routes/admin');
 const banRouter = require('./routes/ban');
+const newsRouter = require('./routes/news');
 
 const app = new Hono();
 
@@ -165,6 +166,7 @@ app.route('/admin', adminRouter);
 app.use('*', serveStatic({ root: './public/stylesheets' }));
 app.route('/rooms/uploads', uploadRouter);
 app.route('/privates/uploads', uploadRouter);
+app.route('/news', newsRouter);
 
 // 404 Not Found
 app.notFound((c) => {
